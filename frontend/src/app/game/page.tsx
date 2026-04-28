@@ -360,7 +360,7 @@ function LocalGameLayout({ onBack }: { onBack: () => void }) {
         </div>
 
         {/* Board column */}
-        <div className="w-[95vw] sm:w-[85vw] lg:w-auto lg:flex-1 max-w-[560px]">
+        <div className="w-full lg:flex-1 max-w-[500px]">
           <ChessBoard orientation={boardFlipped ? "black" : "white"} byTime={byTime} />
 
           {/* Check indicator */}

@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Chessboard } from "react-chessboard";
 import { Chess, Square } from "chess.js";
 import { motion } from "framer-motion";
@@ -96,12 +96,27 @@ export function ChessBoard({ byTime, orientation = "white" }: ChessBoardProps) {
       }
     : {};
 
+  const [boardWidth, setBoardWidth] = useState(0);
   const boardStyle = deepWork.isActive ? ZEN_BOARD : DEFAULT_BOARD;
+
+  useEffect(() => {
+    const updateWidth = () => {
+      const viewport = window.innerWidth;
+      const max = 500;
+      const safe = Math.max(280, viewport - 40);
+      setBoardWidth(Math.min(max, safe));
+    };
+
+    updateWidth();
+    window.addEventListener("resize", updateWidth);
+    return () => window.removeEventListener("resize", updateWidth);
+  }, []);
 
   return (
     <motion.div
       layout
-      className="relative w-full max-w-[560px] aspect-square mx-auto"
+      className="relative w-full max-w-[500px] aspect-square mx-auto"
+      style={{ width: boardWidth || undefined }}
       animate={{
         filter: deepWork.isActive
           ? "saturate(0.6) brightness(0.85)"
