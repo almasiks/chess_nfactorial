@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import type { RegisterData } from "@/context/AuthContext";
@@ -89,6 +90,7 @@ export function AuthModals({ mode, onClose, onSwitchMode }: Props) {
 }
 
 function LoginForm({ onClose }: { onClose: () => void }) {
+  const router = useRouter();
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -102,6 +104,7 @@ function LoginForm({ onClose }: { onClose: () => void }) {
     try {
       await login(email, password);
       onClose();
+      router.push("/profile");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Ошибка входа");
     } finally {
@@ -139,6 +142,7 @@ function LoginForm({ onClose }: { onClose: () => void }) {
 }
 
 function RegisterForm({ onClose }: { onClose: () => void }) {
+  const router = useRouter();
   const { register } = useAuth();
   const [form, setForm] = useState<RegisterData>({
     username: "", email: "", password: "", password2: "", city: "almaty",
@@ -158,6 +162,7 @@ function RegisterForm({ onClose }: { onClose: () => void }) {
     try {
       await register(form);
       onClose();
+      router.push("/profile");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Ошибка регистрации");
     } finally {

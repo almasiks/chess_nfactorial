@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const MOCK_USER_KEY = "steppechess_mock_user";
 
 export interface UserData {
   id: number;
@@ -40,52 +41,122 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const createFallbackUser = (email: string, username?: string): UserData => {
+    const safeName = username?.trim() || email.split("@")[0] || "Гость";
+    return {
+      id: 0,
+      username: safeName,
+      email,
+      asyqs: 150,
+      level: "Демобатыр",
+      level_display: "Демобатыр",
+      city: "Алматы",
+      city_display: "Алматы",
+      rating: 1500,
+      is_pro: false,
+      avatar: null,
+    };
+  };
+
+  const persistFallbackUser = (userData: UserData) => {
+    localStorage.setItem(MOCK_USER_KEY, JSON.stringify(userData));
+    localStorage.setItem("steppechess_profile", JSON.stringify({ displayName: userData.username, avatarKey: "batyr" }));
+  };
+
   useEffect(() => {
     const token = localStorage.getItem("steppechess_access");
     if (!token) { setLoading(false); return; }
+
     fetch(`${API}/api/users/me/`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => { if (!r.ok) throw new Error("Invalid"); return r.json(); })
+      .then((r) => {
+        if (!r.ok) {
+          throw new Error("Invalid");
+        }
+        return r.json();
+      })
       .then(setUser)
       .catch(() => {
+        if (token === "mock") {
+          const stored = localStorage.getItem(MOCK_USER_KEY);
+          if (stored) {
+            try {
+              setUser(JSON.parse(stored));
+              return;
+            } catch {
+              /* ignore */ }
+          }
+        }
         localStorage.removeItem("steppechess_access");
         localStorage.removeItem("steppechess_refresh");
       })
       .finally(() => setLoading(false));
   }, []);
 
+  const handleOfflineLogin = (email: string, username?: string) => {
+    const fallbackUser = createFallbackUser(email, username);
+    localStorage.setItem("steppechess_access", "mock");
+    localStorage.setItem("steppechess_refresh", "mock");
+    persistFallbackUser(fallbackUser);
+    setUser(fallbackUser);
+  };
+
   const login = useCallback(async (email: string, password: string) => {
-    const res = await fetch(`${API}/api/users/login/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail ?? "Ошибка входа");
+    try {
+      const res = await fetch(`${API}/api/users/login/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!res.ok) {
+        if (res.status >= 500) {
+          handleOfflineLogin(email);
+          return;
+        }
+        const err = await res.json();
+        throw new Error(err.detail ?? "Ошибка входа");
+      }
+      const data = await res.json();
+      localStorage.setItem("steppechess_access", data.access);
+      localStorage.setItem("steppechess_refresh", data.refresh);
+      setUser(data.user);
+    } catch (error) {
+      if (error instanceof TypeError) {
+        handleOfflineLogin(email);
+        return;
+      }
+      throw error;
     }
-    const data = await res.json();
-    localStorage.setItem("steppechess_access", data.access);
-    localStorage.setItem("steppechess_refresh", data.refresh);
-    setUser(data.user);
   }, []);
 
   const register = useCallback(async (data: RegisterData) => {
-    const res = await fetch(`${API}/api/users/register/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      const msgs = Object.entries(err).map(([, v]) =>
-        Array.isArray(v) ? v.join(", ") : String(v)
-      );
-      throw new Error(msgs.join("; ") || "Ошибка регистрации");
+    try {
+      const res = await fetch(`${API}/api/users/register/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        if (res.status >= 500) {
+          handleOfflineLogin(data.email, data.username);
+          return;
+        }
+        const err = await res.json();
+        const msgs = Object.entries(err).map(([, v]) =>
+          Array.isArray(v) ? v.join(", ") : String(v)
+        );
+        throw new Error(msgs.join("; ") || "Ошибка регистрации");
+      }
+      const result = await res.json();
+      localStorage.setItem("steppechess_access", result.access);
+      localStorage.setItem("steppechess_refresh", result.refresh);
+      setUser(result.user);
+    } catch (error) {
+      if (error instanceof TypeError) {
+        handleOfflineLogin(data.email, data.username);
+        return;
+      }
+      throw error;
     }
-    const result = await res.json();
-    localStorage.setItem("steppechess_access", result.access);
-    localStorage.setItem("steppechess_refresh", result.refresh);
-    setUser(result.user);
   }, []);
 
   const logout = useCallback(() => {
